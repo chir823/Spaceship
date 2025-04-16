@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Pro 360 Space Shooter - Free, No Login">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Galactic Strike Force</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: black;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: #0ff;
+            pointer-events: none;
+        }
+        #score, #lives, #level, #credits, #kills, #enemyCount {
+            position: absolute;
+            font-size: 16px;
+            text-shadow: 0 0 6px #0ff;
+        }
+        #score { top: 10px; left: 10px; }
+        #lives { top: 10px; right: 10px; }
+        #level { top: 30px; left: 10px; }
+        #credits { top: 50px; left: 10px; }
+        #kills { top: 70px; left: 10px; }
+        #enemyCount { top: 90px; left: 10px; }
+        #startScreen, #gameOver, #adScreen, #pauseScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            border: 3px solid #0ff;
+            pointer-events: auto;
+            box-shadow: 0 0 20px #0ff;
+        }
+        #startScreen img {
+            max-width: 200px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px #0ff;
+        }
+        h2 {
+            color: #0ff;
+            margin: 8px;
+            font-size: 28px;
+            text-shadow: 0 0 10px #0ff;
+        }
+        p {
+            margin: 5px;
+            font-size: 18px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            margin: 8px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background: #0ff;
+            color: black;
+            pointer-events: auto;
+            transition: background 0.2s;
+        }
+        button:active {
+            background: #0aa;
+        }
+        .control-buttons {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .directional-buttons {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: grid;
+            grid-template-areas:
+                ". up ."
+                "left center right"
+                ". down .";
+            gap: 10px;
+        }
+        .control-button, .directional-button {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 255, 255, 0.4);
+            border-radius: 10px;
+            border: 3px solid #0ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            color: white;
+            text-shadow: 0 0 4px black;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        .control-button:active, .directional-button:active {
+            background: rgba(0, 255, 255, 0.9);
+        }
+        #upButton { grid-area: up; }
+        #downButton { grid-area: down; }
+        #leftButton { grid-area: left; }
+        #rightButton { grid-area: right; }
+        #pauseButton {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 40px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="uiOverlay">
+        <div id="score">Score: 0</div>
+        <div id="lives">Lives: 3</div>
+        <div id="level">Level: 1</div>
+        <div id="credits">Credits: 0</div>
+        <div id="kills">Kills: 0</div>
+        <div id="enemyCount">Enemies: 0</div>
+        <div id="startScreen">
+            <img src="assets/images/thumbnail.png" alt="Game Thumbnail">
+            <h2>Galactic Strike Force</h2>
+            <p id="achievement">Rookie Pilot</p>
+            <button onclick="startGame()">Play Now</button>
+        </div>
+        <div id="gameOver" style="display: none;">
+            <h2>Game Over</h2>
+            <p>Score: <span id="finalScore"></span></p>
+            <p>Kills: <span id="finalKills"></span></p>
+            <p>Level: <span id="finalLevel"></span></p>
+            <button onclick="restartGame()">Restart</button>
+            <button onclick="showAdScreen()">Earn Credits (100)</button>
+        </div>
+        <div id="adScreen" style="display: none;">
+            <h2>Watch Ad</h2>
+            <p>Earn 100 Credits</p>
+            <button onclick="watchAd()">Watch</button>
+            <button onclick="closeAdScreen()">Close</button>
+        </div>
+        <div id="pauseScreen" style="display: none;">
+            <h2>Paused</h2>
+            <button onclick="resumeGame()">Resume</button>
+            <button onclick="restartGame()">Restart</button>
+        </div>
+        <div class="control-buttons">
+            <div id="shootButton" class="control-button">Shoot</div>
+            <div id="specialButton" class="control-button">Special</div>
+        </div>
+        <div class="directional-buttons">
+            <div id="upButton" class="directional-button">↑</div>
+            <div id="downButton" class="directional-button">↓</div>
+            <div id="leftButton" class="directional-button">←</div>
+            <div id="rightButton" class="directional-button">→</div>
+        </div>
+        <div id="pauseButton" class="control-button">Pause</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        // Resize canvas
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Load assets
+        const assets = {
+            spaceship: new Image(),
+            asteroid: new Image(),
+            ufo: new Image(),
+            mine: new Image(),
+            boss: new Image(),
+            scout: new Image(),
+            destroyer: new Image(),
+            sniper: new Image(),
+            swarm: new Image(),
+            stealth: new Image(),
+            shield: new Image(),
+            speed: new Image(),
+            multishot: new Image(),
+            invincibility: new Image(),
+            missile: new Image(),
+            plasma: new Image(),
+            thumbnail: new Image(),
+            background1_near: new Image(),
+            background1_far: new Image(),
+            background2_near: new Image(),
+            background2_far: new Image(),
+            background3_near: new Image(),
+            background3_far: new Image(),
+            background4_near: new Image(),
+            background4_far: new Image(),
+            background5_near: new Image(),
+            background5_far: new Image(),
+            shoot: new Audio(),
+            missile: new Audio(),
+            plasma: new Audio(),
+            explosion: new Audio(),
+            powerup: new Audio(),
+            hit: new Audio(),
+            gameover: new Audio(),
+            bgm: new Audio(),
+            levelup: new Audio(),
+            special: new Audio(),
+            enemyspawn: new Audio(),
+            powerdown: new Audio()
+        };
+        const assetPaths = {
+            spaceship: 'assets/images/spaceship.png',
+            asteroid: 'assets/images/asteroid.png',
+            ufo: 'assets/images/ufo.png',
+            mine: 'assets/images/mine.png',
+            boss: 'assets/images/boss.png',
+            scout: 'assets/images/scout.png',
+            destroyer: 'assets/images/destroyer.png',
+            sniper: 'assets/images/sniper.png',
+            swarm: 'assets/images/swarm.png',
+            stealth: 'assets/images/stealth.png',
+            shield: 'assets/images/shield.png',
+            speed: 'assets/images/speed.png',
+            multishot: 'assets/images/multishot.png',
+            invincibility: 'assets/images/invincibility.png',
+            missile: 'assets/images/missile.png',
+            plasma: 'assets/images/plasma.png',
+            thumbnail: 'assets/images/thumbnail.png',
+            background1_near: 'assets/images/background1_near.png',
+            background1_far: 'assets/images/background1_far.png',
+            background2_near: 'assets/images/background2_near.png',
+            background2_far: 'assets/images/background2_far.png',
+            background3_near: 'assets/images/background3_near.png',
+            background3_far: 'assets/images/background3_far.png',
+            background4_near: 'assets/images/background4_near.png',
+            background4_far: 'assets/images/background4_far.png',
+            background5_near: 'assets/images/background5_near.png',
+            background5_far: 'assets/images/background5_far.png',
+            shoot: 'assets/audio/shoot.mp3',
+            missile: 'assets/audio/missile.mp3',
+            plasma: 'assets/audio/plasma.mp3',
+            explosion: 'assets/audio/explosion.mp3',
+            powerup: 'assets/audio/powerup.mp3',
+            hit: 'assets/audio/hit.mp3',
+            gameover: 'assets/audio/gameover.mp3',
+            bgm: 'assets/audio/bgm.mp3',
+            levelup: 'assets/audio/levelup.mp3',
+            special: 'assets/audio/special.mp3',
+            enemyspawn: 'assets/audio/enemyspawn.mp3',
+            powerdown: 'assets/audio/powerdown.mp3'
+        };
+        let assetsLoaded = 0;
+        const totalAssets = Object.keys(assets).length;
+        for (let key in assets) {
+            if (assets[key] instanceof Image) {
+                assets[key].src = assetPaths[key];
+                assets[key].onload = () => {
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) {
+                        document.getElementById('startScreen').style.display = 'block';
+                        loadAchievements();
+                    }
+                };
+                assets[key].onerror = () => {
+                    console.error(`Failed to load ${assetPaths[key]}`);
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) {
+                        document.getElementById('startScreen').style.display = 'block';
+                        loadAchievements();
+                    }
+                };
+            } else if (assets[key] instanceof Audio) {
+                assets[key].src = assetPaths[key];
+                assets[key].oncanplaythrough = () => {
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) {
+                        document.getElementById('startScreen').style.display = 'block';
+                        loadAchievements();
+                    }
+                };
+                assets[key].onerror = () => {
+                    console.error(`Failed to load ${assetPaths[key]}`);
+                    assetsLoaded++;
+                    if (assetsLoaded === totalAssets) {
+                        document.getElementById('startScreen').style.display = 'block';
+                        loadAchievements();
+                    }
+                };
+                // Set audio properties
+                assets[key].volume = key === 'bgm' ? 0.3 : 0.7;
+                if (key === 'bgm') {
+                    assets[key].loop = true;
+                }
+            }
+        }
+
+        // Sound playback function
+        function playSound(soundKey) {
+            const audio = assets[soundKey];
+            if (audio) {
+                audio.currentTime = 0; // Reset to start
+                audio.play().catch(e => console.error(`Error playing ${soundKey}:`, e));
+            }
+        }
+
+        // Game state
+        let gameState = 'start';
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let credits = 0;
+        let kills = 0;
+        let player, enemies, bullets, powerups, particles;
+        let bgOffsets = { far: 0, near: 0 };
+        let bgSet = 1;
+        let deathCount = 0;
+        let achievements = { highScore: 0, title: 'Rookie Pilot' };
+        let cameraShake = { x: 0, y: 0, timer: 0 };
+
+        // Local storage
+        function loadAchievements() {
+            const saved = localStorage.getItem('spaceShooterAchievements');
+            if (saved) achievements = JSON.parse(saved);
+            updateAchievementUI();
+        }
+        function saveAchievements() {
+            localStorage.setItem('spaceShooterAchievements', JSON.stringify(achievements));
+            updateAchievementUI();
+        }
+        function updateAchievementUI() {
+            const titles = [
+                { score: 0, title: 'Rookie Pilot' },
+                { score: 5000, title: 'Star Captain' },
+                { score: 15000, title: 'Cosmic Ace' },
+                { score: 30000, title: 'Galactic Hero' },
+                { score: 50000, title: 'Legendary Commander' }
+            ];
+            for (let t of titles) {
+                if (achievements.highScore >= t.score) achievements.title = t.title;
+            }
+            document.getElementById('achievement').textContent = achievements.title;
+        }
+
+        // Player class
+        class Player {
+            constructor() {
+                this.x = width / 2;
+                this.y = height * 0.8;
+                this.width = 60;
+                this.height = 60;
+                this.speed = 8;
+                this.shootCooldown = 0;
+                this.invincible = false;
+                this.invincibleTimer = 0;
+                this.multishot = false;
+                this.multishotTimer = 0;
+                this.speedBoost = false;
+                this.speedBoostTimer = 0;
+                this.missileCount = 5;
+                this.plasmaMode = false;
+                this.plasmaTimer = 0;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + cameraShake.x, this.y + cameraShake.y);
+                if (assets.spaceship.complete && assets.spaceship.naturalWidth) {
+                    ctx.drawImage(assets.spaceship, -this.width / 2, -this.height / 2, this.width, this.height);
+                } else {
+                    ctx.fillStyle = '#0ff';
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                }
+                if (this.invincible) {
+                    ctx.globalAlpha = Math.sin(Date.now() / 80) * 0.5 + 0.4;
+                    ctx.drawImage(assets.shield, -this.width / 1.5, -this.height / 1.5, this.width * 1.2, this.height * 1.2);
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+            update() {
+                if (this.shootCooldown > 0) this.shootCooldown--;
+                if (this.invincibleTimer > 0) {
+                    this.invincibleTimer--;
+                    if (this.invincibleTimer <= 0) this.invincible = false;
+                }
+                if (this.multishotTimer > 0) {
+                    this.multishotTimer--;
+                    if (this.multishotTimer <= 0) this.multishot = false;
+                }
+                if (this.speedBoostTimer > 0) {
+                    this.speedBoostTimer--;
+                    if (this.speedBoostTimer <= 0) {
+                        this.speedBoost = false;
+                        this.speed = 8;
+                    }
+                }
+                if (this.plasmaTimer > 0) {
+                    this.plasmaTimer--;
+                    if (this.plasmaTimer <= 0) this.plasmaMode = false;
+                }
+                this.x = Math.max(this.width / 2, Math.min(width - this.width / 2, this.x));
+                this.y = Math.max(this.height / 2, Math.min(height - this.height / 2, this.y));
+            }
+            shoot(type = 'normal') {
+                if (this.shootCooldown <= 0 && bullets.length < 100) {
+                    const vx = 0;
+                    const vy = -15;
+                    if (type === 'missile' && this.missileCount > 0) {
+                        bullets.push(new Bullet(this.x, this.y, vx, vy, 'missile'));
+                        this.missileCount--;
+                        this.shootCooldown = 15;
+                        playSound('missile');
+                    } else if (type === 'plasma') {
+                        bullets.push(new Bullet(this.x, this.y, vx, vy, 'plasma'));
+                        this.shootCooldown = 8;
+                        playSound('plasma');
+                    } else if (this.multishot) {
+                        bullets.push(new Bullet(this.x, this.y, -2, vy, 'normal'));
+                        bullets.push(new Bullet(this.x, this.y, 2, vy, 'normal'));
+                        bullets.push(new Bullet(this.x, this.y, vx, vy, 'normal'));
+                        this.shootCooldown = 5;
+                        playSound('shoot');
+                    } else {
+                        bullets.push(new Bullet(this.x, this.y, vx, vy, 'normal'));
+                        this.shootCooldown = 5;
+                        playSound('shoot');
+                    }
+                }
+            }
+            activateSpecial() {
+                if (credits >= 50) {
+                    this.invincible = true;
+                    this.invincibleTimer = 300;
+                    credits -= 50;
+                    playSound('special');
+                    updateUI();
+                }
+            }
+        }
+
+        // Bullet class
+        class Bullet {
+            constructor(x, y, vx, vy, type = 'normal', pattern = 'straight', target = null) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.type = type;
+                this.pattern = pattern;
+                this.target = target;
+                this.width = type === 'missile' ? 20 : type === 'plasma' ? 15 : type === 'laser' ? 10 : 10;
+                this.height = type === 'missile' ? 40 : type === 'plasma' ? 30 : type === 'laser' ? 50 : 20;
+                this.damage = type === 'missile' ? 5 : type === 'plasma' ? 3 : type === 'laser' ? 4 : 1;
+                this.age = 0;
+                this.timer = 0;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + cameraShake.x, this.y + cameraShake.y);
+                const img = this.type === 'missile' ? assets.missile : this.type === 'plasma' ? assets.plasma : null;
+                if (img && img.complete && img.naturalWidth) {
+                    ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+                } else {
+                    ctx.fillStyle = this.type === 'missile' ? '#f90' : this.type === 'plasma' ? '#f0f' : this.type === 'laser' ? '#ff0' : '#0ff';
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                }
+                ctx.restore();
+            }
+            update() {
+                if (this.pattern === 'straight') {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                } else if (this.pattern === 'wave') {
+                    this.x += this.vx + Math.sin(this.timer / 10) * 2;
+                    this.y += this.vy;
+                } else if (this.pattern === 'homing' && this.target) {
+                    const dx = this.target.x - this.x;
+                    const dy = this.target.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 10) {
+                        this.vx += (dx / dist) * 0.1;
+                        this.vy += (dy / dist) * 0.1;
+                        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                        if (speed > 5) {
+                            this.vx = (this.vx / speed) * 5;
+                            this.vy = (this.vy / speed) * 5;
+                        }
+                    }
+                    this.x += this.vx;
+                    this.y += this.vy;
+                }
+                this.timer++;
+                this.age++;
+            }
+        }
+
+        // Enemy class
+        class Enemy {
+            constructor(x, y, type = 'asteroid') {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                const config = {
+                    asteroid: { width: 50, health: 3 + level, speed: 2.5 + level * 0.2, shoot: false },
+                    ufo: { width: 60, health: 5 + level, speed: 3 + level * 0.3, shoot: true, shootType: 'normal', shootChance: 0.01 },
+                    mine: { width: 40, health: 1, speed: 2, shoot: false },
+                    boss: { width: 150, health: 50 + level * 10, speed: 1, shoot: true, shootType: 'plasma', shootChance: 0.05 },
+                    scout: { width: 30, health: 2 + level, speed: 4 + level * 0.4, shoot: true, shootType: 'normal', shootChance: 0.015 },
+                    destroyer: { width: 80, health: 10 + level * 2, speed: 1.5, shoot: true, shootType: 'spread', shootChance: 0.02 },
+                    sniper: { width: 50, health: 4 + level, speed: 2, shoot: true, shootType: 'laser', shootChance: 0.005 },
+                    swarm: { width: 25, health: 1, speed: 3 + level * 0.3, shoot: true, shootType: 'normal', shootChance: 0.008 },
+                    stealth: { width: 50, health: 5 + level, speed: 3, shoot: true, shootType: 'homing', shootChance: 0.01, invisible: true }
+                };
+                this.width = config[type].width;
+                this.height = this.width;
+                this.health = config[type].health;
+                this.speed = config[type].speed;
+                this.shoot = config[type].shoot;
+                this.shootType = config[type].shootType || 'normal';
+                this.shootChance = config[type].shootChance || 0;
+                this.invisible = config[type].invisible || false;
+                this.patternTimer = ['ufo', 'boss', 'scout', 'sniper', 'stealth'].includes(type) ? Math.random() * 200 : 0;
+                this.invisibleTimer = this.invisible ? Math.random() * 100 : 0;
+            }
+            draw() {
+                if (this.invisible && Math.sin(this.invisibleTimer / 20) < 0) return;
+                const img = {
+                    boss: assets.boss,
+                    ufo: assets.ufo,
+                    mine: assets.mine,
+                    asteroid: assets.asteroid,
+                    scout: assets.scout,
+                    destroyer: assets.destroyer,
+                    sniper: assets.sniper,
+                    swarm: assets.swarm,
+                    stealth: assets.stealth
+                }[this.type];
+                ctx.save();
+                ctx.translate(this.x + cameraShake.x, this.y + cameraShake.y);
+                if (img && img.complete && img.naturalWidth) {
+                    ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+                } else {
+                    ctx.fillStyle = {
+                        boss: '#f00',
+                        ufo: '#0f0',
+                        mine: '#f90',
+                        asteroid: '#888',
+                        scout: '#00f',
+                        destroyer: '#a00',
+                        sniper: '#ff0',
+                        swarm: '#0aa',
+                        stealth: '#555'
+                    }[this.type];
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                }
+                ctx.restore();
+            }
+            update() {
+                this.y += this.speed;
+                if (['ufo', 'scout', 'stealth'].includes(this.type)) {
+                    this.x += Math.sin(this.patternTimer / 20) * 2;
+                } else if (this.type === 'boss') {
+                    this.x += Math.sin(this.patternTimer / 30) * 3;
+                } else if (this.type === 'destroyer') {
+                    this.x += Math.cos(this.patternTimer / 25) * 1.5;
+                } else if (this.type === 'sniper') {
+                    this.y += Math.sin(this.patternTimer / 40) * 0.5;
+                } else if (this.type === 'swarm') {
+                    this.x += Math.sin(this.patternTimer / 15 + this.x) * 3;
+                }
+                this.patternTimer++;
+                if (this.invisible) this.invisibleTimer++;
+                if (this.shoot && Math.random() < this.shootChance) {
+                    if (this.shootType === 'spread') {
+                        bullets.push(new Bullet(this.x - 20, this.y, -1, 5, 'normal'));
+                        bullets.push(new Bullet(this.x, this.y, 0, 5, 'normal'));
+                        bullets.push(new Bullet(this.x + 20, this.y, 1, 5, 'normal'));
+                    } else if (this.shootType === 'laser') {
+                        bullets.push(new Bullet(this.x, this.y, 0, 7, 'laser'));
+                    } else if (this.shootType === 'circular') {
+                        for (let i = 0; i < 8; i++) {
+                            const angle = (i / 8) * Math.PI * 2;
+                            bullets.push(new Bullet(this.x, this.y, Math.cos(angle) * 3, Math.sin(angle) * 3, 'normal'));
+                        }
+                    } else if (this.shootType === 'wave') {
+                        bullets.push(new Bullet(this.x, this.y, 0, 5, 'normal', 'wave'));
+                    } else if (this.shootType === 'homing') {
+                        bullets.push(new Bullet(this.x, this.y, 0, 3, 'normal', 'homing', player));
+                    } else {
+                        bullets.push(new Bullet(this.x, this.y, 0, 5, this.shootType));
+                    }
+                }
+                this.x = Math.max(this.width / 2, Math.min(width - this.width / 2, this.x));
+            }
+        }
+
+        // PowerUp class
+        class PowerUp {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.width = 40;
+                this.height = 40;
+                this.type = type;
+                this.speed = 2;
+                this.timer = 500;
+            }
+            draw() {
+                const img = {
+                    shield: assets.shield,
+                    speed: assets.speed,
+                    multishot: assets.multishot,
+                    invincibility: assets.invincibility,
+                    missile: assets.missile,
+                    plasma: assets.plasma
+                }[this.type];
+                ctx.save();
+                ctx.translate(this.x + cameraShake.x, this.y + cameraShake.y);
+                ctx.globalAlpha = Math.sin(Date.now() / 150) * 0.4 + 0.6;
+                if (img && img.complete && img.naturalWidth) {
+                    ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+                } else {
+                    ctx.fillStyle = {
+                        shield: '#0ff',
+                        speed: '#ff0',
+                        multishot: '#f90',
+                        invincibility: '#f0f',
+                        missile: '#f00',
+                        plasma: '#0f0'
+                    }[this.type];
+                    ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                }
+                ctx.restore();
+            }
+            update() {
+                this.y += this.speed;
+                this.timer--;
+            }
+        }
+
+        // Particle class
+        class Particle {
+            constructor(x, y, color = '#0ff') {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = (Math.random() - 0.5) * 10;
+                this.size = Math.random() * 8 + 4;
+                this.life = 40;
+                this.color = color;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(${this.color === '#0ff' ? '0,255,255' : this.color === '#f90' ? '255,153,0' : '255,255,255'}, ${this.life / 40})`;
+                ctx.beginPath();
+                ctx.arc(this.x + cameraShake.x, this.y + cameraShake.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+            }
+        }
+
+        // Directional controls
+        let directionalState = { up: false, down: false, left: false, right: false };
+
+        function setupDirectionalButton(buttonId, direction) {
+            const button = document.getElementById(buttonId);
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                directionalState[direction] = true;
+            });
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                directionalState[direction] = false;
+            });
+        }
+
+        setupDirectionalButton('upButton', 'up');
+        setupDirectionalButton('downButton', 'down');
+        setupDirectionalButton('leftButton', 'left');
+        setupDirectionalButton('rightButton', 'right');
+
+        // Action buttons
+        let shootButton = { isHolding: false };
+        let specialButton = { touchStart: 0, touchCount: 0, isHolding: false };
+
+        function setupActionButton(buttonId, type) {
+            const button = document.getElementById(buttonId);
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (type === 'shoot') {
+                    shootButton.isHolding = true;
+                } else {
+                    const now = Date.now();
+                    if (now - specialButton.touchStart < 300) {
+                        specialButton.touchCount++;
+                    } else {
+                        specialButton.touchCount = 1;
+                    }
+                    specialButton.touchStart = now;
+                    specialButton.isHolding = true;
+                }
+            });
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (type === 'shoot') {
+                    shootButton.isHolding = false;
+                } else {
+                    specialButton.isHolding = false;
+                    if (specialButton.touchCount >= 2) {
+                        player && player.activateSpecial();
+                        specialButton.touchCount = 0;
+                    }
+                }
+            });
+        }
+
+        setupActionButton('shootButton', 'shoot');
+        setupActionButton('specialButton', 'special');
+
+        // Pause button
+        document.getElementById('pauseButton').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'playing') {
+                gameState = 'paused';
+                assets.bgm.pause();
+                document.getElementById('pauseScreen').style.display = 'block';
+            }
+        });
+
+        // Ad system
+        function showAdScreen() {
+            gameState = 'ad';
+            assets.bgm.pause();
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('adScreen').style.display = 'block';
+        }
+
+        function closeAdScreen() {
+            gameState = 'start';
+            document.getElementById('adScreen').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'block';
+        }
+
+        function watchAd() {
+            setTimeout(() => {
+                credits += 100;
+                updateUI();
+                closeAdScreen();
+            }, 1500);
+        }
+
+        // UI updates
+        function updateUI() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+            document.getElementById('lives').textContent = `Lives: ${lives}`;
+            document.getElementById('level').textContent = `Level: ${level}`;
+            document.getElementById('credits').textContent = `Credits: ${credits}`;
+            document.getElementById('kills').textContent = `Kills: ${kills}`;
+            document.getElementById('enemyCount').textContent = `Enemies: ${enemies.length}`;
+        }
+
+        // Game initialization
+        function startGame() {
+            gameState = 'playing';
+            document.getElementById('startScreen').style.display = 'none';
+            player = new Player();
+            enemies = [];
+            bullets = [];
+            powerups = [];
+            particles = [];
+            score = 0;
+            lives = 3;
+            level = 1;
+            credits = 0;
+            kills = 0;
+            deathCount = 0;
+            bgSet = 1;
+            cameraShake = { x: 0, y: 0, timer: 0 };
+            assets.bgm.play();
+            updateUI();
+        }
+
+        function restartGame() {
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('pauseScreen').style.display = 'none';
+            assets.bgm.pause();
+            deathCount++;
+            if (deathCount % 2 === 0) {
+                showAdScreen();
+            } else {
+                startGame();
+            }
+            if (score > achievements.highScore) {
+                achievements.highScore = score;
+                saveAchievements();
+            }
+        }
+
+        function resumeGame() {
+            gameState = 'playing';
+            assets.bgm.play();
+            document.getElementById('pauseScreen').style.display = 'none';
+        }
+
+        // Spawning
+        function spawnEnemy() {
+            const maxEnemies = Math.min(20 + level * 2, 50);
+            if (Math.random() < 0.02 * Math.min(level * 0.5, 10) && enemies.length < maxEnemies) {
+                const x = Math.random() * width;
+                const y = -50;
+                let type;
+                if (level % 5 === 0 && enemies.length === 0) {
+                    type = 'boss';
+                } else {
+                    const enemyTypes = [
+                        { type: 'asteroid', chance: 0.4 },
+                        { type: 'ufo', chance: level >= 8 ? 0.2 : 0 },
+                        { type: 'mine', chance: level >= 5 ? 0.15 : 0 },
+                        { type: 'scout', chance: level >= 2 ? 0.15 : 0 },
+                        { type: 'destroyer', chance: level >= 10 ? 0.1 : 0 },
+                        { type: 'sniper', chance: level >= 15 ? 0.1 : 0 },
+                        { type: 'swarm', chance: level >= 12 ? 0.15 : 0 },
+                        { type: 'stealth', chance: level >= 20 ? 0.05 : 0 }
+                    ].filter(e => e.chance > 0);
+                    let rand = Math.random();
+                    let sum = 0;
+                    for (let enemy of enemyTypes) {
+                        sum += enemy.chance;
+                        if (rand < sum) {
+                            type = enemy.type;
+                            break;
+                        }
+                    }
+                }
+                enemies.push(new Enemy(x, y, type));
+                playSound('enemyspawn');
+            }
+        }
+
+        function spawnPowerUp() {
+            if (Math.random() < 0.002 && powerups.length < 3 && score >= 1000) {
+                const x = Math.random() * width;
+                const y = -50;
+                const types = ['shield', 'speed', 'multishot', 'invincibility', 'missile', 'plasma'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                powerups.push(new PowerUp(x, y, type));
+            }
+        }
+
+        // Collisions
+        function checkCollisions() {
+            if (!player) return;
+
+            for (let eIndex = enemies.length - 1; eIndex >= 0; eIndex--) {
+                const enemy = enemies[eIndex];
+                if (!player.invincible && Math.abs(player.x - enemy.x) < (player.width + enemy.width) / 2 &&
+                    Math.abs(player.y - enemy.y) < (player.height + enemy.height) / 2) {
+                    lives--;
+                    if (enemy.type !== 'mine') enemies.splice(eIndex, 1);
+                    cameraShake.timer = 10;
+                    for (let i = 0; i < 20; i++) particles.push(new Particle(player.x, player.y));
+                    playSound('hit');
+                    if (lives <= 0) {
+                        gameState = 'gameOver';
+                        assets.bgm.pause();
+                        playSound('gameover');
+                        document.getElementById('finalScore').textContent = score;
+                        document.getElementById('finalKills').textContent = kills;
+                        document.getElementById('finalLevel').textContent = level;
+                        document.getElementById('gameOver').style.display = 'block';
+                    }
+                    updateUI();
+                    continue;
+                }
+                for (let bIndex = bullets.length - 1; bIndex >= 0; bIndex--) {
+                    const bullet = bullets[bIndex];
+                    if (bullet.vy < 0) {
+                        if (Math.abs(bullet.x - enemy.x) < (bullet.width + enemy.width) / 2 &&
+                            Math.abs(bullet.y - enemy.y) < (bullet.height + enemy.height) / 2) {
+                            enemy.health -= bullet.damage;
+                            bullets.splice(bIndex, 1);
+                            if (enemy.health <= 0) {
+                                score += {
+                                    boss: 500,
+                                    ufo: 100,
+                                    scout: 50,
+                                    destroyer: 150,
+                                    sniper: 120,
+                                    swarm: 20,
+                                    stealth: 200,
+                                    mine: 50,
+                                    asteroid: 25
+                                }[enemy.type] + level * 10;
+                                kills++;
+                                cameraShake.timer = 5;
+                                enemies.splice(eIndex, 1);
+                                for (let i = 0; i < 20; i++) particles.push(new Particle(enemy.x, enemy.y, enemy.type === 'boss' ? '#f00' : '#0ff'));
+                                playSound('explosion');
+                                if (score >= level * 1000) {
+                                    level++;
+                                    playSound('levelup');
+                                    bgSet = Math.min(5, Math.floor(level / 10) + 1);
+                                }
+                            }
+                            updateUI();
+                            break;
+                        }
+                    }
+                }
+            }
+            for (let bIndex = bullets.length - 1; bIndex >= 0; bIndex--) {
+                const bullet = bullets[bIndex];
+                if (bullet.vy > 0 && !player.invincible) {
+                    if (Math.abs(bullet.x - player.x) < (bullet.width + player.width) / 2 &&
+                        Math.abs(bullet.y - player.y) < (bullet.height + player.height) / 2) {
+                        lives--;
+                        bullets.splice(bIndex, 1);
+                        cameraShake.timer = 10;
+                        for (let i = 0; i < 20; i++) particles.push(new Particle(player.x, player.y));
+                        playSound('hit');
+                        if (lives <= 0) {
+                            gameState = 'gameOver';
+                            assets.bgm.pause();
+                            playSound('gameover');
+                            document.getElementById('finalScore').textContent = score;
+                            document.getElementById('finalKills').textContent = kills;
+                            document.getElementById('finalLevel').textContent = level;
+                            document.getElementById('gameOver').style.display = 'block';
+                        }
+                        updateUI();
+                    }
+                }
+            }
+            for (let pIndex = powerups.length - 1; pIndex >= 0; pIndex--) {
+                const powerup = powerups[pIndex];
+                if (Math.abs(player.x - powerup.x) < (player.width + powerup.width) / 2 &&
+                    Math.abs(player.y - powerup.y) < (player.height + powerup.width) / 2) {
+                    if (powerup.type === 'shield') lives = Math.min(lives + 1, 5);
+                    else if (powerup.type === 'speed') {
+                        player.speedBoost = true;
+                        player.speedBoostTimer = 600;
+                        player.speed = 12;
+                    } else if (powerup.type === 'multishot') {
+                        player.multishot = true;
+                        player.multishotTimer = 600;
+                    } else if (powerup.type === 'invincibility') {
+                        player.invincible = true;
+                        player.invincibleTimer = 300;
+                    } else if (powerup.type === 'missile') player.missileCount += 5;
+                    else if (powerup.type === 'plasma') {
+                        player.plasmaMode = true;
+                        player.plasmaTimer = 600;
+                    }
+                    powerups.splice(pIndex, 1);
+                    for (let i = 0; i < 15; i++) particles.push(new Particle(powerup.x, powerup.y, '#fff'));
+                    playSound('powerup');
+                    updateUI();
+                }
+            }
+            for (let pIndex = powerups.length - 1; pIndex >= 0; pIndex--) {
+                if (powerups[pIndex].timer <= 0) {
+                    powerups.splice(pIndex, 1);
+                    playSound('powerdown');
+                }
+            }
+        }
+
+        // Game loop
+        let lastTime = 0;
+        function gameLoop(time) {
+            if (gameState !== 'playing') {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            const delta = Math.min((time - lastTime) / 1000, 1 / 30);
+            lastTime = time;
+
+            if (cameraShake.timer > 0) {
+                cameraShake.x = (Math.random() - 0.5) * 5;
+                cameraShake.y = (Math.random() - 0.5) * 5;
+                cameraShake.timer--;
+            } else {
+                cameraShake.x = 0;
+                cameraShake.y = 0;
+            }
+
+            let dx = 0, dy = 0;
+            if (directionalState.up) dy -= player.speed;
+            if (directionalState.down) dy += player.speed;
+            if (directionalState.left) dx -= player.speed;
+            if (directionalState.right) dx += player.speed;
+            if (dx !== 0 || dy !== 0) {
+                const speed = Math.sqrt(dx * dx + dy * dy) > player.speed ? player.speed : Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+                player.x += Math.cos(angle) * speed;
+                player.y += Math.sin(angle) * speed;
+            }
+
+            if (shootButton.isHolding) {
+                player && (player.plasmaMode ? player.shoot('plasma') : player.shoot());
+            }
+            if (specialButton.isHolding && specialButton.touchCount === 1) {
+                player && player.missileCount > 0 && player.shoot('missile');
+            }
+
+            player.update();
+            bullets.forEach(b => b.update());
+            enemies.forEach(e => e.update());
+            powerups.forEach(p => p.update());
+            particles.forEach(p => p.update());
+
+            spawnEnemy();
+            spawnPowerUp();
+            checkCollisions();
+
+            bullets = bullets.filter(b => b.y > -b.height && b.y < height + b.height && b.age < 80);
+            enemies = enemies.filter(e => e.y < height + e.height);
+            powerups = powerups.filter(p => p.y < height + p.height && p.timer > 0);
+            particles = particles.filter(p => p.life > 0);
+
+            ctx.clearRect(0, 0, width, height);
+            bgOffsets.far += 0.5 * delta * 60;
+            bgOffsets.near += 1.5 * delta * 60;
+            if (bgOffsets.far >= height) bgOffsets.far -= height;
+            if (bgOffsets.near >= height) bgOffsets.near -= height;
+            const farBg = assets[`background${bgSet}_far`];
+            const nearBg = assets[`background${bgSet}_near`];
+            if (farBg.complete && farBg.naturalWidth) {
+                ctx.drawImage(farBg, 0, bgOffsets.far - height, width, height);
+                ctx.drawImage(farBg, 0, bgOffsets.far, width, height);
+            } else {
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, width, height);
+            }
+            if (nearBg.complete && nearBg.naturalWidth) {
+                ctx.globalAlpha = 0.5;
+                ctx.drawImage(nearBg, 0, bgOffsets.near - height, width, height);
+                ctx.drawImage(nearBg, 0, bgOffsets.near, width, height);
+                ctx.globalAlpha = 1;
+            }
+            powerups.forEach(p => p.draw());
+            if (player) player.draw();
+            bullets.forEach(b => b.draw());
+            enemies.forEach(e => e.draw());
+            particles.forEach(p => p.draw());
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
